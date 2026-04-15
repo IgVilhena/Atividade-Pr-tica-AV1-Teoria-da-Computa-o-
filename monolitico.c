@@ -52,5 +52,7 @@ L6: goto L3;
 
 L7:
     printf("\nResultado: %d^%d = %d\n", base, exp, result);
+    printf("\nPressione Enter para sair...");
+    getchar(); getchar();
     return 0;
 }
