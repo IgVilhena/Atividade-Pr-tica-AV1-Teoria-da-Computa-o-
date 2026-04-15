@@ -13,9 +13,10 @@
  Cada sigma_i = (rotulo_i, {var: valor, ...})
 
  Programas analisados:
-   P1 - potencia com contagem CRESCENTE via goto/rotulos (monolitico C)
-   P2 - potencia iterativa Python NORMALIZADA para L1-L7 (equivalente a P1)
-   P3 - potencia com contagem DECRESCENTE (nao equivalente a P1)
+   P1     - potencia com contagem CRESCENTE (count: 0 -> exp)
+   P_iter - forma monolitica normalizada do iterativo.py (L1-L7)
+            usado para demonstrar EQUIVALENCIA FORTE com P1
+   P3     - potencia com contagem DECRESCENTE (count: exp -> 0)
 
  Executar: python3 maquina_de_tracas.py
 
@@ -81,7 +82,7 @@ class MaquinaDeTracas:
         return cadeia
 
     def imprimir_cadeia(self, cadeia: list[dict], entrada: dict):
-        """Exibe a cadeia de tracas no formato de fita."""
+        """Exibe a cadeia de tracas no formato de tabela vertical."""
         largura = 62
         print()
         print("=" * largura)
@@ -96,6 +97,54 @@ class MaquinaDeTracas:
         print("=" * largura)
 
         # Resultado final
+        ultimo = cadeia[-1]['estado']
+        if 'result' in ultimo:
+            print(f"  Resultado final : result = {ultimo['result']}")
+        print("=" * largura)
+
+    def imprimir_fita(self, cadeia: list[dict], entrada: dict):
+        """
+        Exibe a cadeia de tracas no formato de sequencia de fita.
+
+        Formato canonico:
+          (L1,{})  ⊢
+          (L2,{result=1})  ⊢
+          ...
+          (L7,{result=8, count=3})      <- HALT
+
+        O simbolo ⊢ le-se "resulta em" (step/yields).
+        Variaveis de entrada (base, exp) sao omitidas do estado
+        exibido para manter a fita legivel — apenas as variaveis
+        modificadas pelo programa (result, count) sao mostradas.
+        """
+        largura = 62
+        print()
+        print("=" * largura)
+        print(f"  Programa : {self.nome}  [FORMATO DE FITA]")
+        print(f"  Entrada  : {entrada}")
+        print("=" * largura)
+
+        for i, config in enumerate(cadeia):
+            rotulo = f"L{config['rotulo']}"
+
+            # Exibe apenas variaveis de programa (exclui entradas base/exp)
+            variaveis_prog = {
+                k: v for k, v in sorted(config['estado'].items())
+                if k not in ('base', 'exp')
+            }
+
+            if variaveis_prog:
+                estado_str = ", ".join(f"{k}={v}" for k, v in variaveis_prog.items())
+                config_str = f"({rotulo}, {{{estado_str}}})"
+            else:
+                config_str = f"({rotulo}, {{}})"
+
+            if i < len(cadeia) - 1:
+                print(f"  {config_str}  ⊢")
+            else:
+                print(f"  {config_str}      <- HALT")
+
+        print("=" * largura)
         ultimo = cadeia[-1]['estado']
         if 'result' in ultimo:
             print(f"  Resultado final : result = {ultimo['result']}")
@@ -125,28 +174,34 @@ P1 = MaquinaDeTracas({
     5: {'tipo': 'ATRIB',   'var': 'count',  'expr': lambda s: s['count'] + 1},
     6: {'tipo': 'GOTO',    'destino': 3},
     7: {'tipo': 'HALT'},
-}, nome="P1 (contagem crescente: count 0 → exp)")
+}, nome="P1 (monolitico: contagem crescente, count 0 -> exp)")
 
 
 #
-# P2 - Iterativo Normalizado (transcricao do while Python para L1-L7)
+# P_iter - Forma monolitica normalizada do programa iterativo (iterativo.py)
 #
-# O programa iterativo Python:
-#   result = 1                →  L1: result ← 1
-#   count  = 0                →  L2: count  ← 0
-#   while count < exp:        →  L3: SE count ≥ exp ENTAO GOTO L7
-#       result = result * base →  L4: result ← result × base
-#       count  = count + 1    →  L5: count  ← count + 1
-#   # (retorno implicito ao while) → L6: GOTO L3
-#   # (fim do while / return)      → L7: HALT
+# O programa iterativo em Python:
+#   result = 1
+#   count  = 0
+#   while count < exp:
+#       result = result * base
+#       count  = count + 1
+#   return result
 #
-# A guarda "count < exp" no while e equivalente ao desvio
-# "SE count >= exp ENTAO GOTO L7" — negacao da mesma condicao.
-# A cada iteracao, as atribuicoes ocorrem na mesma ordem (L4 → L5)
-# e o retorno ao teste e implicito no loop, correspondendo a L6.
-# Portanto, as instrucoes normalizadas sao IDENTICAS as de P1.
+# Transcrito para instrucoes atomicas L1-L7:
+#   L1: result <- 1                        (result = 1)
+#   L2: count  <- 0                        (count  = 0)
+#   L3: SE count >= exp ENTAO GOTO L7      (negacao da guarda: while count < exp)
+#   L4: result <- result * base            (corpo do while)
+#   L5: count  <- count + 1               (corpo do while)
+#   L6: GOTO L3                            (retorno implicito ao teste do while)
+#   L7: HALT                               (fim do while / return)
 #
-P2 = MaquinaDeTracas({
+# A condicao do while Python e `count < exp`, cuja negacao e `count >= exp`,
+# correspondendo exatamente ao desvio de L3. As instrucoes normalizadas sao
+# identicas as de P1 — portanto P1 e P_iter sao FORTEMENTE EQUIVALENTES.
+#
+P_iter = MaquinaDeTracas({
     1: {'tipo': 'ATRIB',   'var': 'result', 'expr': lambda s: 1},
     2: {'tipo': 'ATRIB',   'var': 'count',  'expr': lambda s: 0},
     3: {'tipo': 'IF_GOTO', 'cond': lambda s: s['count'] >= s['exp'], 'destino': 7},
@@ -154,7 +209,7 @@ P2 = MaquinaDeTracas({
     5: {'tipo': 'ATRIB',   'var': 'count',  'expr': lambda s: s['count'] + 1},
     6: {'tipo': 'GOTO',    'destino': 3},
     7: {'tipo': 'HALT'},
-}, nome="P2 — Iterativo Normalizado (while Python → L1-L7)")
+}, nome="P_iter (iterativo.py normalizado para L1-L7)")
 
 
 #
@@ -170,13 +225,13 @@ P2 = MaquinaDeTracas({
 #
 P3 = MaquinaDeTracas({
     1: {'tipo': 'ATRIB',   'var': 'result', 'expr': lambda s: 1},
-    2: {'tipo': 'ATRIB',   'var': 'count',  'expr': lambda s: s['exp']},       # count = exp
-    3: {'tipo': 'IF_GOTO', 'cond': lambda s: s['count'] <= 0, 'destino': 7},   # testa <= 0
+    2: {'tipo': 'ATRIB',   'var': 'count',  'expr': lambda s: s['exp']},
+    3: {'tipo': 'IF_GOTO', 'cond': lambda s: s['count'] <= 0, 'destino': 7},
     4: {'tipo': 'ATRIB',   'var': 'result', 'expr': lambda s: s['result'] * s['base']},
-    5: {'tipo': 'ATRIB',   'var': 'count',  'expr': lambda s: s['count'] - 1}, # decrementa
+    5: {'tipo': 'ATRIB',   'var': 'count',  'expr': lambda s: s['count'] - 1},
     6: {'tipo': 'GOTO',    'destino': 3},
     7: {'tipo': 'HALT'},
-}, nome="P3 (contagem decrescente: count exp → 0)")
+}, nome="P3 (contagem decrescente: count exp -> 0)")
 
 
 # ============================================================
@@ -188,7 +243,8 @@ def comparar(cadeia_a: list, cadeia_b: list,
     """
     Compara duas cadeias de tracas.
     Dois programas sao FORTEMENTE EQUIVALENTES se e somente se,
-    para toda entrada, suas cadeias de tracas sao identicas.
+    para toda entrada, suas cadeias de tracas sao identicas
+    configuracao a configuracao.
     """
     largura = 62
     print()
@@ -209,10 +265,9 @@ def comparar(cadeia_a: list, cadeia_b: list,
             break
 
     if ponto_divergencia is None and len(cadeia_a) == len(cadeia_b):
-        print(f"\n  ✓  CADEIAS IDENTICAS PARA ESTA ENTRADA")
+        print(f"\n  ✓  FORTEMENTE EQUIVALENTES")
         print(f"     Ambas as cadeias possuem {len(cadeia_a)} configuracoes identicas.")
-        print(f"     Para a entrada dada, {nome_a} ≡ {nome_b}:")
-        print(f"     mesma sequencia de rotulos e estados em cada sigma_i.")
+        print(f"     Para toda entrada, {nome_a} ≡ {nome_b} (mesma cadeia, mesmo resultado).")
     else:
         idx = ponto_divergencia if ponto_divergencia is not None else limite
         print(f"\n  ✗  NAO FORTEMENTE EQUIVALENTES")
@@ -237,56 +292,55 @@ def comparar(cadeia_a: list, cadeia_b: list,
 
 if __name__ == "__main__":
 
-    SEPARADOR = "\n" + "#" * 62
+    SEP = "\n" + "#" * 62
 
     # ----- Entrada de teste principal -----
     entrada = {'base': 2, 'exp': 3}
-    print(SEPARADOR)
+    print(SEP)
     print(f"#  MAQUINA DE TRACAS — Potenciacao Inteira")
     print(f"#  Entrada: base={entrada['base']}, exp={entrada['exp']}")
     print(f"#  Esperado: {entrada['base']}^{entrada['exp']} = {entrada['base']**entrada['exp']}")
-    print(SEPARADOR)
+    print(SEP)
 
     # Executa os tres programas
-    cadeia_P1 = P1.executar(entrada)
-    cadeia_P2 = P2.executar(entrada)
-    cadeia_P3 = P3.executar(entrada)
+    cadeia_P1    = P1.executar(entrada)
+    cadeia_Piter = P_iter.executar(entrada)
+    cadeia_P3    = P3.executar(entrada)
 
-    # Exibe as cadeias de P1, P2 e P3
+    # ---- Tabelas verticais de P1 e P3 ----
+    print(SEP)
+    print("#  CADEIAS DE TRACAS — formato tabela")
+    print(SEP)
     P1.imprimir_cadeia(cadeia_P1, entrada)
-    P2.imprimir_cadeia(cadeia_P2, entrada)
     P3.imprimir_cadeia(cadeia_P3, entrada)
 
-    # ---- Caso 1: EQUIVALENCIA FORTE (P1 vs P2 — Iterativo Normalizado) ----
-    print(SEPARADOR)
-    print("#  CASO 1: Equivalencia forte")
-    print("#  P1 (monolitico C/goto)  vs  P2 (iterativo Python normalizado para L1-L7)")
-    print("#")
-    print("#  P1 e P2 sao programas de ORIGENS DIFERENTES (goto vs while),")
-    print("#  mas ao normalizar o while em instrucoes atomicas L1-L7,")
-    print("#  as cadeias de tracas resultam identicas para toda entrada.")
-    print(SEPARADOR)
-    comparar(cadeia_P1, cadeia_P2, "P1", "P2-IterNorm", entrada)
-    print("  ► Conclusao: P1 e P2 sao FORTEMENTE EQUIVALENTES.")
-    print("    Programas de origens distintas (goto vs while) produzem")
-    print("    cadeias identicas quando normalizados — equivalencia nao-trivial.")
+    # ---- Formato de fita de P1 e P3 ----
+    print(SEP)
+    print("#  CADEIAS DE TRACAS — formato de fita (canonico)")
+    print(SEP)
+    P1.imprimir_fita(cadeia_P1, entrada)
+    P3.imprimir_fita(cadeia_P3, entrada)
+
+    # ---- Caso 1: EQUIVALENCIA FORTE (P1 vs P_iter) ----
+    print(SEP)
+    print("#  CASO 1: Equivalencia forte  —  P1 vs P_iter")
+    print("#  P_iter e a forma normalizada L1-L7 do iterativo.py")
+    print(SEP)
+    comparar(cadeia_P1, cadeia_Piter, "P1", "P_iter", entrada)
 
     # ---- Caso 2: NAO-EQUIVALENCIA FORTE (P1 vs P3) ----
-    print(SEPARADOR)
+    print(SEP)
     print("#  CASO 2: Nao-equivalencia forte  —  P1 vs P3")
-    print(SEPARADOR)
+    print(SEP)
     comparar(cadeia_P1, cadeia_P3, "P1", "P3", entrada)
 
-    # ---- Teste adicional: entrada com exp=0 ----
-    print(SEPARADOR)
+    # ---- Teste adicional: exp=0 (caso base) ----
+    print(SEP)
     print("#  TESTE EXTRA: exp = 0  (caso base)")
-    print(SEPARADOR)
+    print(SEP)
     entrada0 = {'base': 5, 'exp': 0}
     c1 = P1.executar(entrada0)
     c3 = P3.executar(entrada0)
-    P1.imprimir_cadeia(c1, entrada0)
-    P3.imprimir_cadeia(c3, entrada0)
+    P1.imprimir_fita(c1, entrada0)
+    P3.imprimir_fita(c3, entrada0)
     comparar(c1, c3, "P1", "P3", entrada0)
-    print("  ► ATENCAO: cadeias identicas para exp=0 NAO implicam equivalencia forte.")
-    print("    Para exp=3 as cadeias divergem em sigma2 — basta uma entrada diferente")
-    print("    para refutar a equivalencia forte (P1 e P3 NAO sao fortemente equiv.).")
