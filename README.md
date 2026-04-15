@@ -68,7 +68,7 @@ A Máquina de Traços foi utilizada para:
 
 ## Uso de IA
 Ferramenta utilizada:
-- ChatGPT
+- Claude
 
 Finalidade de uso:
 - apoio à revisão textual;
